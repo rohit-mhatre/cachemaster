@@ -1,0 +1,822 @@
+openapi: 3.0.3
+info:
+  title: High-Performance Cache Layer API
+  description: A Redis-like in-memory caching service with REST API
+  version: 1.0.0
+  contact:
+    name: API Support
+    url: https://github.com/your-repo/cache-layer
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3000
+    description: Development server
+  - url: https://api.cache-layer.com
+    description: Production server
+
+security:
+  # No authentication required for basic usage
+  # Add API keys or JWT for production
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Returns basic health status and system information
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "healthy"
+                timestamp: "2024-01-15T10:30:00.000Z"
+                uptime: 3600.5
+                memory:
+                  rss: 45.2
+                  heapUsed: 32.1
+                  heapTotal: 64.0
+                config:
+                  port: 3000
+                  evictionPolicy: "LRU"
+                  maxMemoryMB: 512
+                  maxKeys: 100000
+
+  /health/detailed:
+    get:
+      summary: Detailed health check
+      description: Returns comprehensive health information including cache statistics
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Detailed health information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailedHealthResponse'
+
+  /api/get/{key}:
+    get:
+      summary: Get a value from cache
+      description: Retrieve a value by key from the cache
+      tags:
+        - Cache Operations
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: The cache key to retrieve
+          schema:
+            type: string
+            maxLength: 256
+      responses:
+        '200':
+          description: Value retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetResponse'
+              examples:
+                found:
+                  summary: Key found
+                  value:
+                    key: "mykey"
+                    value: "myvalue"
+                    exists: true
+                not_found:
+                  summary: Key not found
+                  value:
+                    key: "missing"
+                    value: null
+                    exists: false
+
+  /api/set:
+    post:
+      summary: Set a key-value pair
+      description: Store a key-value pair in the cache with optional TTL
+      tags:
+        - Cache Operations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetRequest'
+            examples:
+              simple:
+                summary: Simple key-value
+                value:
+                  key: "mykey"
+                  value: "myvalue"
+              with_ttl:
+                summary: With TTL expiration
+                value:
+                  key: "session"
+                  value: "user123"
+                  ttl: 3600000
+      responses:
+        '200':
+          description: Value stored successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetResponse'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/delete/{key}:
+    delete:
+      summary: Delete a key
+      description: Remove a key-value pair from the cache
+      tags:
+        - Cache Operations
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: The cache key to delete
+          schema:
+            type: string
+            maxLength: 256
+      responses:
+        '200':
+          description: Delete operation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+
+  /api/exists/{key}:
+    get:
+      summary: Check if key exists
+      description: Check whether a key exists in the cache
+      tags:
+        - Cache Operations
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: The cache key to check
+          schema:
+            type: string
+            maxLength: 256
+      responses:
+        '200':
+          description: Existence check completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExistsResponse'
+
+  /api/increment/{key}:
+    post:
+      summary: Increment a numeric value
+      description: Atomically increment a numeric value (creates if doesn't exist)
+      tags:
+        - Advanced Operations
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: The counter key to increment
+          schema:
+            type: string
+            maxLength: 256
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncrementRequest'
+      responses:
+        '200':
+          description: Value incremented successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncrementResponse'
+        '400':
+          description: Value is not numeric
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/update-ttl/{key}:
+    post:
+      summary: Update key TTL
+      description: Update the time-to-live for an existing key
+      tags:
+        - Advanced Operations
+      parameters:
+        - name: key
+          in: path
+          required: true
+          description: The cache key to update
+          schema:
+            type: string
+            maxLength: 256
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTTLRequest'
+      responses:
+        '200':
+          description: TTL updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateTTLResponse'
+        '400':
+          description: Invalid TTL value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/keys:
+    get:
+      summary: List all keys
+      description: Get a paginated list of all cache keys
+      tags:
+        - Cache Operations
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of keys to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 100
+        - name: offset
+          in: query
+          description: Number of keys to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Keys retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KeysResponse'
+
+  /api/batch/set:
+    post:
+      summary: Batch set multiple keys
+      description: Set multiple key-value pairs in a single request
+      tags:
+        - Batch Operations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchSetRequest'
+            example:
+              entries:
+                - key: "key1"
+                  value: "value1"
+                - key: "key2"
+                  value: "value2"
+                  ttl: 3600000
+      responses:
+        '200':
+          description: Batch set completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchSetResponse'
+        '400':
+          description: Invalid batch data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/batch/get:
+    post:
+      summary: Batch get multiple values
+      description: Retrieve multiple values in a single request
+      tags:
+        - Batch Operations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchGetRequest'
+            example:
+              keys: ["key1", "key2", "key3"]
+      responses:
+        '200':
+          description: Batch get completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchGetResponse'
+        '400':
+          description: Invalid keys array
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/batch/delete:
+    post:
+      summary: Batch delete multiple keys
+      description: Delete multiple keys in a single request
+      tags:
+        - Batch Operations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchDeleteRequest'
+            example:
+              keys: ["key1", "key2", "key3"]
+      responses:
+        '200':
+          description: Batch delete completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchDeleteResponse'
+        '400':
+          description: Invalid keys array
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/stats:
+    get:
+      summary: Get cache statistics
+      description: Retrieve detailed cache performance and usage statistics
+      tags:
+        - Monitoring
+      responses:
+        '200':
+          description: Statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsResponse'
+              example:
+                totalKeys: 1250
+                hits: 15420
+                misses: 2580
+                hitRate: 85.6
+                memoryUsage: 5242880
+                evictions: 45
+                expirations: 12
+                opsPerSecond: 12500
+                memoryUsagePercent: 45.2
+                timestamp: "2024-01-15T10:30:00.000Z"
+
+  /api/stats/reset:
+    post:
+      summary: Reset statistics
+      description: Reset all cache statistics counters to zero
+      tags:
+        - Monitoring
+      responses:
+        '200':
+          description: Statistics reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResetStatsResponse'
+
+  /api/config:
+    get:
+      summary: Get current configuration
+      description: Retrieve the current cache configuration settings
+      tags:
+        - Monitoring
+      responses:
+        '200':
+          description: Configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigResponse'
+
+components:
+  schemas:
+    # Common schemas
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+      required:
+        - error
+
+    # Health schemas
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy]
+        timestamp:
+          type: string
+          format: date-time
+        uptime:
+          type: number
+          description: Server uptime in seconds
+        memory:
+          type: object
+          properties:
+            rss:
+              type: number
+              description: Resident Set Size in MB
+            heapUsed:
+              type: number
+              description: Used heap memory in MB
+            heapTotal:
+              type: number
+              description: Total heap memory in MB
+        config:
+          $ref: '#/components/schemas/ConfigSummary'
+      required:
+        - status
+        - timestamp
+        - uptime
+        - memory
+        - config
+
+    DetailedHealthResponse:
+      allOf:
+        - $ref: '#/components/schemas/HealthResponse'
+        - type: object
+          properties:
+            cache:
+              $ref: '#/components/schemas/StatsResponse'
+            system:
+              type: object
+              properties:
+                platform:
+                  type: string
+                arch:
+                  type: string
+                nodeVersion:
+                  type: string
+                pid:
+                  type: integer
+
+    ConfigSummary:
+      type: object
+      properties:
+        port:
+          type: integer
+        evictionPolicy:
+          type: string
+          enum: [LRU, LFU, FIFO]
+        maxMemoryMB:
+          type: integer
+        maxKeys:
+          type: integer
+
+    # Cache operation schemas
+    GetResponse:
+      type: object
+      properties:
+        key:
+          type: string
+        value:
+          description: The cached value (any JSON-serializable type)
+        exists:
+          type: boolean
+      required:
+        - key
+        - exists
+
+    SetRequest:
+      type: object
+      properties:
+        key:
+          type: string
+          maxLength: 256
+        value:
+          description: Any JSON-serializable value
+        ttl:
+          type: integer
+          description: Time-to-live in milliseconds
+          minimum: 1
+          maximum: 86400000
+      required:
+        - key
+        - value
+
+    SetResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        key:
+          type: string
+        ttl:
+          type: integer
+      required:
+        - success
+        - key
+
+    DeleteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        key:
+          type: string
+      required:
+        - success
+        - key
+
+    ExistsResponse:
+      type: object
+      properties:
+        key:
+          type: string
+        exists:
+          type: boolean
+      required:
+        - key
+        - exists
+
+    IncrementRequest:
+      type: object
+      properties:
+        amount:
+          type: integer
+          default: 1
+      required: []
+
+    IncrementResponse:
+      type: object
+      properties:
+        key:
+          type: string
+        value:
+          type: number
+        amount:
+          type: integer
+      required:
+        - key
+        - value
+        - amount
+
+    UpdateTTLRequest:
+      type: object
+      properties:
+        ttl:
+          type: integer
+          minimum: 1
+          maximum: 86400000
+      required:
+        - ttl
+
+    UpdateTTLResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        key:
+          type: string
+        ttl:
+          type: integer
+      required:
+        - success
+        - key
+        - ttl
+
+    KeysResponse:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            type: string
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required:
+        - keys
+        - total
+        - limit
+        - offset
+
+    # Batch operation schemas
+    BatchSetRequest:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+                maxLength: 256
+              value:
+                description: Any JSON-serializable value
+              ttl:
+                type: integer
+                minimum: 1
+                maximum: 86400000
+            required:
+              - key
+              - value
+          minItems: 1
+          maxItems: 100
+      required:
+        - entries
+
+    BatchSetResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        count:
+          type: integer
+      required:
+        - success
+        - count
+
+    BatchGetRequest:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            type: string
+            maxLength: 256
+          minItems: 1
+          maxItems: 100
+      required:
+        - keys
+
+    BatchGetResponse:
+      type: object
+      properties:
+        result:
+          type: object
+          description: Object mapping keys to their values
+          additionalProperties: true
+        requested:
+          type: integer
+        found:
+          type: integer
+      required:
+        - result
+        - requested
+        - found
+
+    BatchDeleteRequest:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            type: string
+            maxLength: 256
+          minItems: 1
+          maxItems: 100
+      required:
+        - keys
+
+    BatchDeleteResponse:
+      type: object
+      properties:
+        deleted:
+          type: array
+          items:
+            type: string
+        requested:
+          type: integer
+        deletedCount:
+          type: integer
+      required:
+        - deleted
+        - requested
+        - deletedCount
+
+    # Monitoring schemas
+    StatsResponse:
+      type: object
+      properties:
+        totalKeys:
+          type: integer
+        hits:
+          type: integer
+        misses:
+          type: integer
+        hitRate:
+          type: number
+          description: Hit rate percentage (0-100)
+        memoryUsage:
+          type: integer
+          description: Memory usage in bytes
+        evictions:
+          type: integer
+        expirations:
+          type: integer
+        opsPerSecond:
+          type: integer
+        memoryUsagePercent:
+          type: number
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - totalKeys
+        - hits
+        - misses
+        - hitRate
+        - memoryUsage
+        - evictions
+        - expirations
+        - opsPerSecond
+        - memoryUsagePercent
+        - timestamp
+
+    ResetStatsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - success
+        - message
+        - timestamp
+
+    ConfigResponse:
+      type: object
+      properties:
+        port:
+          type: integer
+        nodeEnv:
+          type: string
+        evictionPolicy:
+          type: string
+          enum: [LRU, LFU, FIFO]
+        maxMemoryMB:
+          type: integer
+        maxKeys:
+          type: integer
+        cleanupIntervalMs:
+          type: integer
+        logLevel:
+          type: string
+          enum: [debug, info, warn, error]
+        enableCompression:
+          type: boolean
+        rateLimitPerMinute:
+          type: integer
+        corsOrigins:
+          type: string
+      required:
+        - port
+        - nodeEnv
+        - evictionPolicy
+        - maxMemoryMB
+        - maxKeys
+        - cleanupIntervalMs
+        - logLevel
+        - enableCompression
+        - rateLimitPerMinute
+        - corsOrigins
+
+  securitySchemes:
+    # Add security schemes here if authentication is implemented
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication

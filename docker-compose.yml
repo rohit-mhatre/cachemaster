@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  cache-layer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - EVICTION_POLICY=LRU
+      - MAX_MEMORY_MB=512
+      - MAX_KEYS=100000
+      - CLEANUP_INTERVAL_MS=60000
+      - LOG_LEVEL=info
+      - ENABLE_COMPRESSION=true
+      - RATE_LIMIT_PER_MINUTE=1000
+      - CORS_ORIGINS=*
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - cache-network
+
+  # Optional: Redis for comparison/benchmarking
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - cache-network
+    profiles:
+      - benchmark
+
+  # Optional: Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - cache-layer
+    restart: unless-stopped
+    networks:
+      - cache-network
+    profiles:
+      - proxy
+
+volumes:
+  redis_data:
+
+networks:
+  cache-network:
+    driver: bridge

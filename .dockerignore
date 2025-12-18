@@ -1,0 +1,48 @@
+# Node.js
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# TypeScript
+*.ts
+!backend/src/**/*.ts
+!backend/tsconfig.json
+
+# Testing
+coverage
+.nyc_output
+*.test.js
+*.spec.js
+
+# IDEs
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Documentation (will be copied separately if needed)
+README.md
+*.md
+
+# Benchmarks (not needed in production image)
+benchmarks
+
+# Frontend (separate service)
+index.html
+index.tsx
+vite.config.ts
+tsconfig.json (root level)
+
+# Other
+.env*
+logs
+*.log

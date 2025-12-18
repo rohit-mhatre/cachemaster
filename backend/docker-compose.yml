@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  cache-layer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cache-layer-backend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - EVICTION_POLICY=LRU
+      - MAX_MEMORY_MB=512
+      - MAX_KEYS=100000
+      - CLEANUP_INTERVAL_MS=60000
+      - LOG_LEVEL=info
+      - ENABLE_COMPRESSION=true
+      - RATE_LIMIT_PER_MINUTE=100
+      - CORS_ORIGINS=*
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    networks:
+      - cache-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  cache-network:
+    driver: bridge
